@@ -1,4 +1,4 @@
-trWorkspaces.GitHub
+Workspaces.GitHub
 =================
 
 Shared CVS/GitHub Mirror
