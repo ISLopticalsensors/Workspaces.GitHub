@@ -1,7 +1,7 @@
 /*
  *	File 		: isl29177.h
  *	Desc 		: Base sample driver header to illustrate sensor features of ISL29177 prox sensor
- *	Ver  		: 1.0
+ *	Ver  		: 1.0.1
  * 	Copyright 	: Intersil Inc. 2014
  * 	License 	: GPLv2
  */
@@ -55,6 +55,8 @@ enum ISL29177_REGS {
 
 
 #define ISL29177_I2C_ADDR	0x44 /* 1000100b */	
+#define REG_ARRAY_SIZE		0x10 
+
 /* TIMER INTERRUPT */
 #define ISL29177_POLL_DELAY_MS	100
 #define ISL29177_GPIO_IRQ      	39 
@@ -64,13 +66,37 @@ enum ISL29177_REGS {
 #define ISL29177_PD_MODE 	0x00 
 #define ISL_FULL_MASK		0xFF
 
-/* CALIBRATION PARAMETER */
-#define OFFSET_ADJUST		0x07
-#define PROX_HI_THRESHOLD	0x25
-#define PROX_LO_THRESHOLD	0x15
 
+/* IRDR Current values */
+#define IRDR_CURR_3600uA	0	
+#define IRDR_CURR_7100uA	1
+#define IRDR_CURR_10700uA	2
+#define IRDR_CURR_12500uA	3
+#define IRDR_CURR_14300uA	4
+#define IRDR_CURR_15000uA	5
+#define IRDR_CURR_17500uA	6
+#define IRDR_CURR_20000uA	7
+
+/* Prox sleep values */
+#define PROX_SLEEP_400ms	0
+#define PROX_SLEEP_200ms	1
+#define PROX_SLEEP_100ms	2
+#define PROX_SLEEP_50ms		3
+#define PROX_SLEEP_25ms		4
+
+/* CALIBRATION PARAMETER */
+#define IRDR_CURRENT		IRDR_CURR_12500uA
+#define PROX_SLEEP_MS		PROX_SLEEP_25ms	
+#define PROX_HI_THRESHOLD	25
+#define PROX_LO_THRESHOLD	20
+
+struct lut {
+	long prox_offset;
+	unsigned char range;
+	long offset;
+};
 struct isl29177_pdata {
 	unsigned int gpio_irq;
-	
+
 }; 
 #endif /* _ISL29177_H_ */
