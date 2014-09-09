@@ -33,6 +33,7 @@
 #include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
+#include <linux/input-polldev.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
 #include <linux/irq.h>
@@ -49,6 +50,7 @@
 static struct isl29028A_data {
 /* mutex lock for critical sections */
 	struct mutex lock;
+	struct input_polled_dev *input_poll_dev;
 	struct work_struct work;
 	struct kset *isl_kset;
 	struct kobject *isl_kobj;
@@ -60,7 +62,7 @@ static struct isl29028A_data {
 
 }isl_data;
 
-/* Global i2c client data */
+//* Global i2c client data */
 static struct i2c_client *isl_client;
 
 /* Device Id table containing list of devices sharing this driver */
@@ -68,6 +70,8 @@ static struct i2c_device_id isl_device_table[] = {
 	{"isl29028A", ISL29028A_I2C_ADDR},		/* Device slave address 0x45h*/
 	{}
 };
+
+
 
 /*
  * @fn          isl29028A_i2c_read_word16
@@ -269,7 +273,7 @@ static ssize_t store_alsir_low_thres(struct kobject *kobj,
 	u8 reg_l;
 	mutex_lock(&isl_data.lock);
 	reg = simple_strtoul(buf, NULL, 10);
-	if (reg <= 0 || reg > 4095) {
+	if (reg < 0 || reg > 4095) {
 		__dbg_invl_err("%s", __func__);
 		goto err_out;
 	}
@@ -352,7 +356,7 @@ static ssize_t store_alsir_high_thres(struct kobject *kobj,
 	short int ret;
 	mutex_lock(&isl_data.lock);
 	reg = simple_strtoul(buf, NULL, 10);
-	if (reg <= 0 || reg > 4095) {
+	if (reg < 0 || reg > 4095) {
 		__dbg_invl_err("%s", __func__);
 		goto err_out;
 	}
@@ -501,9 +505,9 @@ static ssize_t store_intr_perst(struct kobject *kobj,
 		goto err_out;
         }
       	if(isl_data.persist_flag) 
-        	reg = (reg & 0x06) | intr_persist; 		/* PROXIMITY SENSING MODE*/
+        	reg = (reg & 0x07) | intr_persist; 		/* PROXIMITY SENSING MODE*/
 	else 
-		reg = (reg & 0x60) | intr_persist;		/* ALS SENSING MODE */
+		reg = (reg & 0x61) | intr_persist;		/* ALS SENSING MODE */
 
         if(i2c_smbus_write_byte_data(isl_client, CONFIG_REG_2, reg) < 0){
 		__dbg_write_err("%s", __func__);
@@ -525,7 +529,7 @@ err_out:
  * @brief       This function shows the current optical sensing range
  *              of sensor device
  *
- * @return      Returns the mode on success otherwise returns an error
+ * @return      Returns the range on success otherwise returns an error
  *              (-1)
  *
  */
@@ -558,7 +562,7 @@ static ssize_t show_alsir_range(struct kobject *kobj,
  *
  */
 
-static int isl_set_sensing_range(short int val)
+static int isl_set_sensing_range(short int val)	//// This function is used in store_alsir_range
 {
 	short int ret;
 
@@ -580,7 +584,7 @@ static int isl_set_sensing_range(short int val)
  *              of sensor device
  *	 	valid ranges LOW = 125
  *		 	    HIGH = 2000
- * @return      Returns the mode on success otherwise returns an error
+ 
  *              (-1)
  *
  */
@@ -609,8 +613,7 @@ static ssize_t store_alsir_range(struct kobject *kobj,
 	return strlen(buf);	
 err_out:
         mutex_unlock(&isl_data.lock);
-        return -1;
-	
+        return -1;	
 }
 
 /*
@@ -814,6 +817,26 @@ static ssize_t show_prox_status(struct kobject *kobj,
 	return strlen(buf);
 }
 
+static ssize_t show_als_status(struct kobject *kobj,
+			 struct kobj_attribute *attr, char *buf)
+{
+	int ret;
+	mutex_lock(&isl_data.lock);
+	ret = i2c_smbus_read_byte_data(isl_client, CONFIG_REG_1);
+	if(ret < 0){
+		__dbg_read_err("%s", __func__);
+		mutex_unlock(&isl_data.lock);
+		return -1;
+	}
+	ret &= 0x04;
+	switch(ret >> 2)
+	{
+		case 0:	sprintf(buf, "disable");break;
+		case 1:	sprintf(buf, "enable");	break;
+	}
+	mutex_unlock(&isl_data.lock);
+	return strlen(buf);
+}
 /*
  * @fn          show_ir_current
  *
@@ -1015,6 +1038,14 @@ __ATTR(ir_data, 0666, show_ir_data, NULL);
 static struct kobj_attribute prox_status_attribute = 
 __ATTR(prox_status, 0666, show_prox_status, NULL);
 
+//////////////////////////
+
+/* Kernel object structure attributes for prox_status sysfs */
+static struct kobj_attribute als_status_attribute = 
+__ATTR(als_status, 0666, show_als_status, NULL);
+
+//////////////////////////
+
 /* kernel object structure for ir_current */
 static struct kobj_attribute ir_current_attribute =
 __ATTR(ir_current, 0666, show_ir_current, store_ir_current);
@@ -1039,6 +1070,8 @@ static struct attribute *isl29028A_attrs[] = {
 	&mode_attribute.attr,
 	&ir_current_attribute.attr,
 	&prox_sleep_t_attribute.attr,
+//
+	&als_status_attribute.attr,
 	NULL
 };
 
@@ -1061,7 +1094,8 @@ static struct attribute_group isl29028A_attr_grp = {
  */
 
 static irqreturn_t isl_sensor_irq_handler(int irq, void *dev_id)
-{
+{	
+//	printk(KERN_ERR"%s\n",__func__);
 	disable_irq_nosync(isl_data.irq_num);
 	schedule_work(&isl_data.work);
 	return IRQ_HANDLED;
@@ -1086,10 +1120,10 @@ static int initialize_isl29028A(struct i2c_client *client)
 	/* Power down the device */
         if(i2c_smbus_write_byte_data(isl_client, CONFIG_REG_1, ISL_REG_CLEAR) < 0)
                 return -EINVAL;
-	/* Write 0x0E to configuration test register 1*/
+	/* Write 0x0E to configuration test register 1 */
         if(i2c_smbus_write_byte_data(isl_client, CONFIG_REG_TEST1, ISL_REG_1_DEF) < 0)
                 return -EINVAL;
-	/* Write 0x029 to configuratio test register 2*/
+	/* Write 0x029 to configuratio test register 2 */
         if(i2c_smbus_write_byte_data(isl_client, CONFIG_REG_TEST2, ISL_REG_TEST_2) < 0)
                 return -EINVAL;
         if(i2c_smbus_write_byte_data(isl_client, CONFIG_REG_TEST2, ISL_REG_CLEAR) < 0)
@@ -1128,6 +1162,32 @@ static int initialize_isl29028A(struct i2c_client *client)
 	
 }
 
+/** @function   : isl_input_poll
+ *  @desc       : Function to report lux and prox value to User space in the OS
+ *
+ *  @args
+ *  dev   	: input polled device
+ *
+ *  @return     : void
+ */
+static void isl_input_poll(struct input_polled_dev *dev)
+{
+        unsigned int prox_value,lux_value;
+
+	if( isl29028A_i2c_read_word16(isl_client, ISL_ALSIR_DT1, &lux_value) < 0){
+                __dbg_read_err("%s", __func__);
+        }
+		
+	prox_value = i2c_smbus_read_byte_data(isl_client, ISL_PROX_DATA);
+        if(prox_value < 0){
+                __dbg_read_err("%s", __func__);
+        }
+
+	input_report_abs(isl_data.input_poll_dev->input, ABS_MISC, lux_value);
+	input_report_abs(isl_data.input_poll_dev->input, ABS_DISTANCE, prox_value);
+	input_sync(isl_data.input_poll_dev->input);
+}
+
 #ifdef ISL29028A_INTERRUPT_MODE
 
 /*
@@ -1153,11 +1213,56 @@ static void isl29028A_irq_thread(struct work_struct *work)
 		__dbg_write_err("%s", __func__);
                 goto err;
         }
+
 err:
         enable_irq(isl_data.irq_num);
 	
 }
 #endif
+
+
+
+/***********************************************************************************/
+
+/** @function: setup_input_device                                     
+ *  @desc    : setup the input device subsystem and report the input data to user space                                                     
+ *  @args    : void                                                   
+ *                                                                    
+ *  @returns : 0 on success and error -1 on failure                   
+ */
+static int setup_input_device(void)
+{
+        isl_data.input_poll_dev = input_allocate_polled_device();
+
+        if(!isl_data.input_poll_dev) {
+                printk( KERN_ERR "Failed to allocate input device");
+                return -1;
+        }
+	isl_data.input_poll_dev->poll = isl_input_poll;
+	isl_data.input_poll_dev->poll_interval = 50;
+
+	isl_data.input_poll_dev->input->name = "isl29028A";
+        input_set_drvdata(isl_data.input_poll_dev->input,&isl_data);
+
+        /* Set event data type */
+        input_set_capability(isl_data.input_poll_dev->input, EV_ABS, ABS_DISTANCE);
+        input_set_capability(isl_data.input_poll_dev->input, EV_ABS, ABS_MISC);
+
+        __set_bit(EV_ABS, isl_data.input_poll_dev->input->evbit);
+        __set_bit(EV_ABS, isl_data.input_poll_dev->input->evbit);
+        
+	input_set_abs_params(isl_data.input_poll_dev->input, ABS_DISTANCE, 0, 1, 0, 0);
+        input_set_abs_params(isl_data.input_poll_dev->input, ABS_MISC, 0, 16000, 0, 0);
+
+        if(input_register_polled_device(isl_data.input_poll_dev)) {
+                printk (KERN_ERR "Failed to register input device");
+                return -1;
+        }
+
+        return 0;
+}
+
+
 
 /*
  * @fn          isl_sensor_probe
@@ -1174,7 +1279,7 @@ static int __devinit isl_sensor_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
 	struct isl29028A_platform_data *pdata;
-	
+	short int ret;	
 	pdata = client->dev.platform_data;
 	if(pdata == NULL){
 		pr_err("%s :%s :Unable to find platform"
@@ -1194,6 +1299,16 @@ static int __devinit isl_sensor_probe(struct i2c_client *client,
 		return -1;
 	}
 
+	mutex_lock(&isl_data.lock);
+	ret = i2c_smbus_read_byte_data(isl_client, CONFIG_REG_1);
+	printk("CONFIG_REG_1 0x74 %x %d\n",ret,ret);
+	ret = i2c_smbus_read_byte_data(isl_client, CONFIG_REG_2);
+	printk("CONFIG_REG_2 0x66 %x %d\n",ret,ret);
+	ret = i2c_smbus_read_byte_data(isl_client, CONFIG_REG_TEST1);
+	printk("test1 0x06 %x %d \n",ret,ret);
+	ret = i2c_smbus_read_byte_data(isl_client, CONFIG_REG_TEST2);
+	printk("test2 0x00 %x %d\n",ret,ret);
+	mutex_unlock(&isl_data.lock);
 #ifdef ISL29028A_INTERRUPT_MODE
 	/* Request GPIO for sensor interrupt */
 	if(gpio_request(pdata->gpio_irq, "isl29028A") < 0){	
@@ -1255,6 +1370,10 @@ static int __devinit isl_sensor_probe(struct i2c_client *client,
 		kobject_put(isl_data.isl_kobj);  
 		goto gpio_err;
 	}
+	
+	if(setup_input_device())
+                goto gpio_err;
+
 	return 0;
 
 #ifdef ISL29028A_INTERRUPT_MODE
@@ -1295,7 +1414,7 @@ static int isl_sensor_suspend(struct i2c_client *client, pm_message_t msg)
         pr_err("%s :%s :Sensor suspended\n",ISL29028_NAME, __func__);
 
 #ifdef ISL29028A_INTERRUPT_MODE
-        disable_irq_nosync(isl_data.irq_num);
+       // disable_irq_nosync(isl_data.irq_num);
 #endif
         return 0;
 err:
@@ -1357,6 +1476,9 @@ static int __devexit isl_sensor_remove(struct i2c_client *client)
 {
 	sysfs_remove_group(isl_data.isl_kobj, &isl29028A_attr_grp);
 	kset_unregister(isl_data.isl_kset);
+	input_unregister_polled_device (isl_data.input_poll_dev);
+	input_free_polled_device (isl_data.input_poll_dev);
+
 #ifdef ISL29028A_INTERRUPT_MODE
 	free_irq(isl_data.irq_num, NULL);
 	gpio_free(39);
@@ -1386,7 +1508,7 @@ static struct i2c_driver isl29028A_sensor_driver = {
  *  @return      Returns 0 on success otherwise returns an error (-1)
  *
  */
-
+/******************************************************************************************************/
 static int __init isl29028A_init(void)
 {
 	return i2c_add_driver(&isl29028A_sensor_driver);
