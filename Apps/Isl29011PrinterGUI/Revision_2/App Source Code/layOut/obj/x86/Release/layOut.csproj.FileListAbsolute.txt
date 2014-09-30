@@ -1,0 +1,17 @@
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\ResolveAssemblyReference.cache
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\layOut.NewSensor.resources
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\layOut.SearchSensor.resources
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\layOut.Properties.Resources.resources
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\layOut.StartUpForm.resources
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\GenerateResource.read.1.tlog
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\GenerateResource.write.1.tlog
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Release\paperTray.xml
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Release\photoTray.xml
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Release\XMLFile1.xml
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Release\layOut.exe
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Release\layOut.pdb
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Release\IntersilLib.dll
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Release\Newtonsoft.Json.dll
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Release\IntersilLib.pdb
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\layOut.exe
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Release\layOut.pdb

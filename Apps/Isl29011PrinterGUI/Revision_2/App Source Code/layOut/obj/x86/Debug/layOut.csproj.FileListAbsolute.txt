@@ -1,0 +1,16 @@
+c:\users\vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Debug\layOut.exe
+c:\users\vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Debug\layOut.pdb
+c:\users\vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\ResolveAssemblyReference.cache
+c:\users\vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\layOut.Properties.Resources.resources
+c:\users\vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\GenerateResource.read.1.tlog
+c:\users\vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\GenerateResource.write.1.tlog
+c:\users\vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\layOut.exe
+c:\users\vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\layOut.pdb
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Debug\IntersilLib.dll
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Debug\IntersilLib.pdb
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\layOut.SearchSensor.resources
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\layOut.StartUpForm.resources
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\obj\x86\Debug\layOut.NewSensor.resources
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Debug\XMLFile1.xml
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Debug\paperTray.xml
+C:\Users\Vandna\documents\visual studio 2010\Projects\layOut\layOut\bin\Debug\photoTray.xml
