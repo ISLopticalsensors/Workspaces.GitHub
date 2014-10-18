@@ -2,7 +2,6 @@
  *	File 		: isl29037.c
  *	Desc 		: Sample driver to illustrate sensor features of ISL29037 
  *			  proximity sensor
- *	Ver  		: 1.0.1
  * 	Copyright 	: Intersil Inc. (2014)
  * 	License 	: GPLv2
  */
@@ -71,39 +70,21 @@ struct isl29037_drv_data {
 
 /* 
  * Data structure for holding runtime state machine parameters
- * @rel_prox		- prox count (directly read from sensor) - baseline
- * @rel_als		- als count (directly read from sensor) - baseline
+ * @report_prox		- prox count (directly read from sensor)
+ * @report_als		- als count (directly read from sensor)
  * @wash		- Ambient IR count 
- * @prox_high_th		- High interrupt threshold that decides the NEAR boundary
- *			  of the object 
- * @prox_low_th		- Low interrupt threshold that decides the FAR boundary of
- * @als_high_th		- High interrupt threshold that decides the NEAR boundary
- *			  of the object 
- * @als_low_th		- Low interrupt threshold that decides the FAR boundary of
- *			  the object
+ * @prox		- prox value in access light condition
  * @obj_pos		- Indicates if the object is NEAR / FAR to the sensor
- * @light		- Indicates the ambient lighting condition as BRIGHT / DIM
  *
  * **/
 
 struct isl29037_sm {
-	unsigned char 	rel_prox;
-	unsigned int 	rel_als;
-
+	unsigned char 	report_prox;
+	unsigned int 	report_als;
+	
 	unsigned char 	wash;
-        unsigned char 	offset;
-	unsigned char 	baseline;
-
-	unsigned char 	prox_high_th;
-	unsigned char 	prox_low_th;
-	unsigned int  	als_high_th;
-	unsigned int  	als_low_th;
-
+	unsigned char	prox;
 	unsigned char 	obj_pos;
-	unsigned char 	light;
-        unsigned char 	np;
-        unsigned char 	offsetpersist;
-        unsigned char 	baselinepersist;
 };
 
 /**
@@ -111,22 +92,22 @@ struct isl29037_sm {
  */
 struct isl29037_regmap
 {
-	/* DEVICE_ID_REG */
+	/* DEVICE_ID_REG	0x00 */
 	unsigned char device_id;
-	/* CONFIG0_REG */
+	/* CONFIG0_REG		0x01 */
 	unsigned char irdr_curr:2;
 	unsigned char prox_slp:3;
 	unsigned char prox_en:1;
 	unsigned char :2;
-	/* CONFIG1_REG */
+	/* CONFIG1_REG		0x02 */
 	unsigned char als_range:2;
 	unsigned char als_en:1;
 	unsigned char prox_offset:4;
 	unsigned char int_alg:1;
-	/* CONFIG2_REG */
+	/* CONFIG2_REG		0x03 */
 	unsigned char als_ir_comp:5;
 	unsigned char :3;
-	/* INT_CONFIG_REG */
+	/* INT_CONFIG_REG	0x04 */
 	unsigned char als_prox_int_cfg:1;
 	unsigned char als_int_perst:2;
 	unsigned char als_int_flag:1;
@@ -134,22 +115,22 @@ struct isl29037_regmap
 	unsigned char prox_int_perst:2;
 	unsigned char prox_int_flag:1;
 	
-	/* PROX THRESHOLD REG */
+	/* PROX THRESHOLD REG	0x05, 0x06*/
 	unsigned char prox_lt;
 	unsigned char prox_ht;
-	/* ALS THRESHOLD REG */
+	/* ALS THRESHOLD REG	0x07, 0x08, 0x09 */
 	unsigned char als_lt;
 	unsigned char als_lht;
 	unsigned char als_ht;
-	/* PROX_DATA */
+	/* PROX_DATA		0x0A */
 	unsigned char prox_data;
-	/* ALS_DATA */
+	/* ALS_DATA		0x0B, 0x0C */
 	unsigned char als_hb;
 	unsigned char als_lb;
-	/* AMBIR_DATA */
+	/* AMBIR_DATA		0x0D */
 	unsigned char prox_wash:1;
 	unsigned char ambir:7;
-	/* CONFIG3_REG */
+	/* CONFIG3_REG		0x0E */
 	unsigned char soft_reset;
 	
 };
@@ -271,6 +252,16 @@ static int isl_write_field(unsigned char reg, unsigned char mask, unsigned char 
 }
 
 
+/** @function: isl_read_field16
+ *  @desc    : read function for reading the 16bit field from the registers
+ *   	       to isl29037 sensor registers over I2C interface
+ *  @args    
+ *  reg	     : register to read from (0x00h to 0x0Fh)
+ *  val	     : value to be read from the register bits
+ *
+ *  @return  : 0 on success, -1 on failure
+ *
+ */
 static void isl_read_field16(unsigned char reg, unsigned int *val)
 {
 	unsigned char low=0,high=0;
@@ -285,10 +276,21 @@ static void isl_read_field16(unsigned char reg, unsigned int *val)
 		*val = *val >> 4;
 	}
 }
+
+
+/** @function: isl_write_field16
+ *  @desc    : write function for writing the 16bit field from the registers
+ *   	       to isl29037 sensor registers over I2C interface
+ *  @args    
+ *  reg	     : register to write to (0x00h to 0x0Fh)
+ *  val	     : value to be write to the register bits
+ *
+ *  @return  : 0 on success, -1 on failure
+ *
+ */
 static void isl_write_field16(unsigned char reg, unsigned int val)
 {
         unsigned char low=0,high=0;
-	
 	
 	if(reg == ALS_INT_TLH_REG || reg == PROX_DATA_HB)
 	{
@@ -477,7 +479,7 @@ static ssize_t reg_write(struct kobject *kobj, struct kobj_attribute *attr,
  *             decimal value
  *  @args      
  *  regbase  : Reference to register map of sensor device
- *  arr      : Temproary array to hold decimal values
+ *  arr      : Temproary array to hold strings
  *
  *  @return  : void
  */
@@ -566,14 +568,14 @@ static ssize_t show_log(struct kobject *kobj, struct kobj_attribute *attr, char 
         sprintf(buf, "%s-----------------------------------------------------------------------\n\n", buf);
         
 	sprintf(buf, "%s%-10s: %-11d  %-11s: %-10d  %-11s: %-10s\n", buf,
-                        "ALS Data",( (regbase->als_hb<<8) | (regbase->als_lb) ) , "PROX Data",regbase->prox_data , "Obj Pos",(rt.obj_pos ? "NEAR":"FAR"));
+                        "ALS Data",( (regbase->als_hb<<8) | (regbase->als_lb) ) , "curr Prox",regbase->prox_data , "Obj Pos",(rt.obj_pos ? "NEAR":"FAR"));
+	sprintf(buf, "%s%-10s: %-11d  %-11s: %-10d  %-11s: %-10d\n", buf,
+"ALS LT", ( ((regbase->als_lt << 8) | (regbase->als_lht)) >> 4 ), "PROX LT",regbase->prox_lt , "Prox Wash",regbase->prox_wash);
 
 	sprintf(buf, "%s%-10s: %-11d  %-11s: %-10d  %-11s: %-10d\n", buf,
-                        "ALS LT", ( ((regbase->als_lt << 8) | (regbase->als_lht)) >> 4 ), "PROX LT",regbase->prox_lt , "Prox Wash",regbase->prox_wash);
+"ALS HT", ( ((regbase->als_lht & 0xF) << 8) | (regbase->als_ht) ), "PROX HT",regbase->prox_ht , "PROX Ambir",regbase->ambir);
 
-	sprintf(buf, "%s%-10s: %-11d  %-11s: %-10d  %-11s: %-10d\n", buf,
-                        "ALS HT", ( ((regbase->als_lht & 0xF) << 8) | (regbase->als_ht) ), "PROX HT",regbase->prox_ht , "PROX Ambir",regbase->ambir);
-
+	sprintf(buf, "%s%-10s: %-11d  %-11s: %-10d\n", buf,"ALSIR Comp", regbase->als_ir_comp, "Prox", rt.prox);
         sprintf(buf, "%s-----------------------------------------------------------------------\n\n", buf);
 
         mutex_unlock(&drv_data.mutex);
@@ -645,7 +647,7 @@ static ssize_t cmd_hndlr(struct kobject *kobj, struct kobj_attribute *attr,
  *  @desc    	: Function to report proximity count to User space in the OS
  *
  *  @args
- *  prox_count 	: als count (0 - 255)
+ *  prox_count 	: als count (0 - 4096)
  *
  *  @return   	: void
  */
@@ -683,24 +685,26 @@ void report_prox_count(int prox_count)
 
 static void sensor_thread(struct work_struct *work)
 {
-	unsigned char wash;
+	unsigned char wash, prox;
 		isl_read_field(PROX_AMBIR_REG, PROX_AMBIR_MASK, &wash);
+		isl_read_field(PROX_DATA_REG, ISL_FULL_MASK, &prox);
 
 		if(wash < rt.wash) {
 		rt.obj_pos = 1;			//1:near
 		rt.wash = wash;
+		rt.prox = prox;
 		}
 
 		if(wash > rt.wash+1){
 		rt.obj_pos = 0;			//0:far
-//		prox = 0;
+		rt.prox = 0;
 		}
 
 	/* Report prox count to Userspace */
-	isl_read_field16(PROX_DATA_HB,&rt.rel_als);
-	isl_read_field(PROX_DATA_REG,ISL_FULL_MASK,&rt.rel_prox);
-	report_prox_count(rt.rel_prox);
-	report_als_count(rt.rel_als);
+	isl_read_field16(PROX_DATA_HB,&rt.report_als);
+	isl_read_field(PROX_DATA_REG,ISL_FULL_MASK,&rt.report_prox);
+	report_prox_count(rt.report_prox);
+	report_als_count(rt.report_als);
 }
 
 /** @function: isl29037_hrtimer_handler
@@ -847,11 +851,14 @@ static int isl29037_initialize(void)
 {
 	/* Reset the sensor device */
         isl_write_field(CONFIG3_REG, ISL_FULL_MASK, 0x38);
+
 	/* Reset the config2 register */
         isl_write_field(CONFIG2_REG, ISL_FULL_MASK, 0x00);
+
 	/* set the configuration register 
 	 IRDR curr: 31.25 mA, Prox sleep: 400 ms, Prox: disable*/
 	isl_write_field(CONFIG0_REG, ISL_FULL_MASK, 0x00 | IRDR_CURR_31250uA | PROX_SLEEP_400ms);
+
 	/* config1 range: 4000 Lux, Als: enable */ 	
         isl_write_field(CONFIG1_REG, ISL_FULL_MASK, 0x04 | ALS_RANGE_4000lux);
 	
@@ -862,12 +869,10 @@ static int isl29037_initialize(void)
         isl_write_field16(ALS_INT_TLH_REG, ALS_HI_THRESHOLD);
 
 	/* Threshold value for PROX register */
-        isl_write_field(PROX_INT_TL_REG, ISL_FULL_MASK, PROX_LO_THRESHOLD);
-        isl_write_field(ALS_INT_TLH_REG, ISL_FULL_MASK, PROX_HI_THRESHOLD);
-
         isl_write_field(INT_CONFIG_REG, ISL_FULL_MASK, 0x00);
         isl_write_field(CONFIG3_REG, ISL_FULL_MASK, 0x00);
 	
+	/* default AMBIR wash value */	
 	rt.wash = 25;
 	return 0;
 }
@@ -1029,5 +1034,3 @@ module_exit(isl29037_exit);
 MODULE_DESCRIPTION("ISL29037 Sensor device driver");
 MODULE_LICENSE("GPLv2");
 MODULE_AUTHOR("VVDN Technologies Pvt Ltd.");
-MODULE_VERSION("1.0.1");
-

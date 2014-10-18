@@ -76,8 +76,8 @@ enum ISL29037_REGS {
 #define PROX_HI_THRESHOLD	25
 #define PROX_LO_THRESHOLD	20
 
-#define ALS_LO_THRESHOLD	12
-#define ALS_HI_THRESHOLD	3276
+#define ALS_LO_THRESHOLD	0x0C0
+#define ALS_HI_THRESHOLD	0x0CC
 
 struct isl29037_pdata {
 	unsigned int gpio_irq;
